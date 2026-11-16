@@ -170,7 +170,7 @@ table {
 	z-index: 60;
 	width: 22px;
 	user-select: none;
-	opacity: 0.55;
+	opacity: 0.25;
 	transition: opacity 0.25s;
 }
 
