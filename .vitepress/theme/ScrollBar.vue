@@ -10,6 +10,9 @@ interface Tick {
 	pos: number
 }
 
+const QUERY =
+	'(hover: hover) and (pointer: fine) and (min-width: 1024px) and (prefers-reduced-motion: no-preference)'
+
 const route = useRoute()
 const enabled = ref(false)
 const scrollable = ref(false)
@@ -21,6 +24,7 @@ const active = ref(-1)
 let maxScroll = 0
 let raf = 0
 let resizeObserver: ResizeObserver | undefined
+let media: MediaQueryList | undefined
 
 const clamp = (n: number, min = 0, max = 1) => Math.min(max, Math.max(min, n))
 
@@ -72,29 +76,51 @@ function refresh() {
 	update()
 }
 
-onMounted(() => {
-	enabled.value = window.matchMedia(
-		'(hover: hover) and (pointer: fine)',
-	).matches
-	if (!enabled.value) return
-
+function start() {
 	refresh()
 	window.addEventListener('scroll', onScroll, { passive: true })
 	window.addEventListener('resize', refresh)
 	resizeObserver = new ResizeObserver(refresh)
 	resizeObserver.observe(document.body)
-})
+}
 
-onBeforeUnmount(() => {
+function stop() {
 	window.removeEventListener('scroll', onScroll)
 	window.removeEventListener('resize', refresh)
 	resizeObserver?.disconnect()
+	resizeObserver = undefined
 	cancelAnimationFrame(raf)
+	raf = 0
+}
+
+// Live: crossing 1024px or toggling reduced motion adds/removes the rail
+function onMediaChange() {
+	const matches = media?.matches ?? false
+	if (matches === enabled.value) return
+	enabled.value = matches
+	if (matches) start()
+	else stop()
+}
+
+onMounted(() => {
+	media = window.matchMedia(QUERY)
+	media.addEventListener('change', onMediaChange)
+	onMediaChange()
+})
+
+onBeforeUnmount(() => {
+	media?.removeEventListener('change', onMediaChange)
+	stop()
 })
 
 watch(
 	() => route.path,
-	() => nextTick(() => setTimeout(refresh, 120)),
+	() =>
+		nextTick(() =>
+			setTimeout(() => {
+				if (enabled.value) refresh()
+			}, 120),
+		),
 )
 </script>
 
@@ -298,18 +324,4 @@ table {
 	transition: none;
 }
 
-@media (max-width: 640px) {
-	.thumb,
-	.tick-label {
-		display: none;
-	}
-}
-
-@media (prefers-reduced-motion: reduce) {
-	.scroll-rail,
-	.thumb,
-	.tick::before {
-		transition: none;
-	}
-}
 </style>
