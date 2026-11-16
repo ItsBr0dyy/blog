@@ -162,6 +162,7 @@ table {
 	margin-left: -2px;
 	background-size: 4px 8px;
 	background-repeat: repeat-y;
+	pointer-events: none;
 }
 
 .track {
@@ -264,6 +265,7 @@ table {
 	background: var(--accent);
 	box-shadow: 0 0 0 3px var(--bg);
 	transform: translate(-50%, -50%);
+	pointer-events: none;
 }
 
 .thumb {
@@ -283,12 +285,17 @@ table {
 	font-variant-numeric: tabular-nums;
 	pointer-events: none;
 	opacity: 0;
-	transition: opacity 0.25s;
+	transition: opacity 0.1s;
 }
 
 /* % bubble on rail hover, but give way to a dot's own label */
 .scroll-rail:hover:not(:has(.tick:hover)) .thumb {
 	opacity: 1;
+	transition: opacity 0.2s 0.2s;
+}
+
+.scroll-rail:has(.tick:hover) .thumb {
+	transition: none;
 }
 
 @media (max-width: 640px) {
