@@ -14,7 +14,7 @@ const route = useRoute()
 const enabled = ref(false)
 const scrollable = ref(false)
 const progress = ref(0)
-const label = ref('top')
+const label = ref('0%')
 const ticks = ref<Tick[]>([])
 const active = ref(-1)
 
@@ -54,8 +54,7 @@ function update() {
 	raf = 0
 	const y = window.scrollY
 	progress.value = maxScroll ? clamp(y / maxScroll) : 0
-	const pct = Math.round(progress.value * 100)
-	label.value = pct <= 0 ? 'top' : pct >= 100 ? 'end' : `${pct}%`
+	label.value = `${Math.round(progress.value * 100)}%`
 
 	let idx = -1
 	ticks.value.forEach((t, i) => {
