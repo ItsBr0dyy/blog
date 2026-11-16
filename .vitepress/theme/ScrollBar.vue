@@ -1,11 +1,12 @@
 <script setup lang="ts">
-import { useRoute } from 'vitepress'
+import { getScrollOffset, useRoute } from 'vitepress'
 import { nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 
 interface Tick {
 	id: string
+	text: string
 	level: number
-	top: number
+	target: number
 	pos: number
 }
 
@@ -38,17 +39,22 @@ function collect() {
 	maxScroll = Math.max(0, root.scrollHeight - window.innerHeight)
 	scrollable.value = maxScroll > 120
 
+	const offset = getScrollOffset()
 	const seen = new Set<string>()
 	const found: Tick[] = []
 	document.querySelectorAll<HTMLElement>('h2[id], h3[id]').forEach((h) => {
 		if (h.closest('nav, aside, header, footer') || seen.has(h.id)) return
+		if (h.getClientRects().length === 0) return
 		seen.add(h.id)
+		const pad = Number.parseInt(getComputedStyle(h).paddingTop, 10) || 0
 		const top = h.getBoundingClientRect().top + window.scrollY
+		const target = clamp(top - offset + pad, 0, maxScroll)
 		found.push({
 			id: h.id,
+			text: (h.textContent || '').replace(/[#\u200b]+$/, '').trim(),
 			level: h.tagName === 'H2' ? 2 : 3,
-			top,
-			pos: maxScroll ? clamp((top - 24) / maxScroll) : 0,
+			target,
+			pos: maxScroll ? target / maxScroll : 0,
 		})
 	})
 	ticks.value = found
@@ -63,7 +69,7 @@ function update() {
 
 	let idx = -1
 	ticks.value.forEach((t, i) => {
-		if (t.top - 140 <= y) idx = i
+		if (t.target <= y + 1) idx = i
 	})
 	active.value = idx
 }
@@ -106,27 +112,31 @@ watch(
 </script>
 
 <template>
-	<div
+	<nav
 		v-if="enabled && scrollable"
 		class="scroll-rail"
 		:class="{ awake }"
 		:style="{ '--p': progress }"
-		aria-hidden="true"
+		aria-label="Page sections"
 	>
-		<span class="track"></span>
-		<span class="fill"></span>
+		<span class="track" aria-hidden="true"></span>
+		<span class="fill" aria-hidden="true"></span>
 
-		<span
+		<a
 			v-for="(t, i) in ticks"
 			:key="t.id"
+			:href="`#${t.id}`"
 			class="tick"
 			:class="{ passed: i <= active, current: i === active, minor: t.level === 3 }"
 			:style="{ '--t': t.pos }"
-		></span>
+			:aria-current="i === active ? 'location' : undefined"
+		>
+			<span class="tick-label">{{ t.text }}</span>
+		</a>
 
-		<span class="knob"></span>
-		<span class="thumb">{{ label }}</span>
-	</div>
+		<span class="knob" aria-hidden="true"></span>
+		<span class="thumb" aria-hidden="true">{{ label }}</span>
+	</nav>
 </template>
 
 <style>
@@ -153,7 +163,8 @@ table {
 	transition: opacity 0.25s;
 }
 
-.scroll-rail.awake {
+.scroll-rail.awake,
+.scroll-rail:has(.tick:hover, .tick:focus-visible) {
 	opacity: 1;
 }
 
@@ -181,28 +192,80 @@ table {
 
 .tick {
 	position: absolute;
+	left: 0;
+	top: calc(var(--t) * (100% - var(--thumb)) + var(--thumb) / 2 - 8px);
+	width: 100%;
+	height: 16px;
+	pointer-events: auto;
+	cursor: pointer;
+	text-decoration: none;
+	outline: none;
+}
+
+.tick::before {
+	content: "";
+	position: absolute;
+	top: 50%;
 	left: 50%;
-	top: calc(var(--t) * (100% - var(--thumb)) + var(--thumb) / 2);
 	width: 7px;
 	height: 7px;
 	border-radius: 50%;
 	background: var(--muted);
 	box-shadow: 0 0 0 2px var(--bg);
 	transform: translate(-50%, -50%);
-	transition: background 0.15s, box-shadow 0.15s;
+	transition: transform 0.15s, background 0.15s;
 }
 
-.tick.minor {
+.tick.minor::before {
 	width: 5px;
 	height: 5px;
 }
 
-.tick.passed {
+.tick.passed::before {
 	background: var(--accent);
 }
 
-.tick.current {
-	box-shadow: 0 0 0 2px var(--bg), 0 0 0 4px var(--bubble);
+/* Current section is marked by size only. A halo ring here gets scaled by
+   the hover rule right after a click and reads as a muddy shadow. */
+.tick.current::before {
+	transform: translate(-50%, -50%) scale(1.3);
+}
+
+.tick:hover::before,
+.tick:focus-visible::before {
+	transform: translate(-50%, -50%) scale(1.5);
+}
+
+.tick:focus-visible::before {
+	outline: 2px solid var(--accent);
+	outline-offset: 2px;
+}
+
+.tick-label {
+	position: absolute;
+	top: 50%;
+	right: calc(100% + 4px);
+	max-width: 240px;
+	padding: 4px 10px;
+	border-radius: 6px 6px 0 6px;
+	background: var(--bubble);
+	color: var(--bubbletext);
+	font-family: var(--font-sans);
+	font-size: 0.8125rem;
+	font-weight: 400;
+	line-height: 1.4;
+	white-space: nowrap;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	pointer-events: none;
+	opacity: 0;
+	transform: translateY(-50%);
+	z-index: 2;
+}
+
+.tick:hover .tick-label,
+.tick:focus-visible .tick-label {
+	opacity: 1;
 }
 
 .knob {
@@ -241,7 +304,8 @@ table {
 }
 
 @media (max-width: 640px) {
-	.thumb {
+	.thumb,
+	.tick-label {
 		display: none;
 	}
 }
@@ -249,7 +313,7 @@ table {
 @media (prefers-reduced-motion: reduce) {
 	.scroll-rail,
 	.thumb,
-	.tick {
+	.tick::before {
 		transition: none;
 	}
 }
