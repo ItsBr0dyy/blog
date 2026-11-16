@@ -17,22 +17,12 @@ const progress = ref(0)
 const label = ref('top')
 const ticks = ref<Tick[]>([])
 const active = ref(-1)
-const awake = ref(false)
 
 let maxScroll = 0
 let raf = 0
-let sleepTimer = 0
 let resizeObserver: ResizeObserver | undefined
 
 const clamp = (n: number, min = 0, max = 1) => Math.min(max, Math.max(min, n))
-
-function wake() {
-	awake.value = true
-	window.clearTimeout(sleepTimer)
-	sleepTimer = window.setTimeout(() => {
-		awake.value = false
-	}, 1400)
-}
 
 function collect() {
 	const root = document.documentElement
@@ -75,7 +65,6 @@ function update() {
 }
 
 function onScroll() {
-	wake()
 	if (!raf) raf = requestAnimationFrame(update)
 }
 
@@ -102,7 +91,6 @@ onBeforeUnmount(() => {
 	window.removeEventListener('resize', refresh)
 	resizeObserver?.disconnect()
 	cancelAnimationFrame(raf)
-	window.clearTimeout(sleepTimer)
 })
 
 watch(
@@ -115,7 +103,6 @@ watch(
 	<nav
 		v-if="enabled && scrollable"
 		class="scroll-rail"
-		:class="{ awake }"
 		:style="{ '--p': progress }"
 		aria-label="Page sections"
 	>
@@ -157,14 +144,14 @@ table {
 	bottom: 20px;
 	z-index: 60;
 	width: 22px;
-	pointer-events: none;
 	user-select: none;
 	opacity: 0.55;
 	transition: opacity 0.25s;
 }
 
-.scroll-rail.awake,
-.scroll-rail:has(.tick:hover, .tick:focus-visible) {
+/* Scrolling never changes the rail's look; it only brightens under the cursor. */
+.scroll-rail:hover,
+.scroll-rail:has(.tick:focus-visible) {
 	opacity: 1;
 }
 
@@ -295,11 +282,13 @@ table {
 	line-height: var(--thumb);
 	text-align: center;
 	font-variant-numeric: tabular-nums;
+	pointer-events: none;
 	opacity: 0;
 	transition: opacity 0.25s;
 }
 
-.awake .thumb {
+/* % bubble on rail hover, but give way to a dot's own label */
+.scroll-rail:hover:not(:has(.tick:hover)) .thumb {
 	opacity: 1;
 }
 
